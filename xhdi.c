@@ -104,7 +104,9 @@ init_XHDI (void)
 	r = XHGetVersion ();
 	if (r < 0)
 	{
-		perror ("XHGetVersion");
+		/* without the cookie there is nothing to report */
+		if (XHDI != (xhdi_t)XHDIfail)
+			perror ("XHGetVersion");
 		
 		XHDI = (xhdi_t)XHDIfail;
 		return r;

@@ -349,12 +349,12 @@ open(const char *filename, int iomode, ...)
 	}
 	else if ((ret = Dlock(1, mydev->drv)) && ret != -ENOSYS)
 	{
-		fprintf(stderr, "Can't lock partition %c:!\n", DriveToLetter(mydev->drv));
+		fprintf(stderr, "Can't lock partition %c: (%s)\n", DriveToLetter(mydev->drv), strerror(-ret));
 		
 		if (mydev)
 			free_device(mydev);
 		
-		__set_errno(EACCES);
+		__set_errno(-ret);
 		return -1;
 	}
 	
@@ -381,9 +381,9 @@ close(int fd)
 	}
 	else if ((ret = Dlock(0, mydev->drv)) && ret != -ENOSYS)
 	{
-		fprintf(stderr, "Can't unlock partition %c:!\n", DriveToLetter(mydev->drv));
+		fprintf(stderr, "Can't unlock partition %c: (%s)\n", DriveToLetter(mydev->drv), strerror(-ret));
 		
-		__set_errno(EACCES);
+		__set_errno(-ret);
 		ret = -1;
 	}
 	else
@@ -491,7 +491,7 @@ read(int fd, void *_buf, size_t size)
 		if (ret)
 		{
 			DEBUG((stderr, "read: partial part: read failure (r = %li, errno = %i)\n", ret, errno));
-			return done;
+			return done ? done : -1;
 		}
 		
 		data = mydev->xhdi_blocksize - offset;
@@ -525,7 +525,7 @@ read(int fd, void *_buf, size_t size)
 		if (ret)
 		{
 			DEBUG((stderr, "read: full blocks: read failure (r = %li, errno = %i)\n", ret, errno));
-			return done;
+			return done ? done : -1;
 		}
 		
 		buf += data;
@@ -553,7 +553,7 @@ read(int fd, void *_buf, size_t size)
 		if (ret)
 		{
 			DEBUG((stderr, "read: left part: read failure (r = %li, errno = %i)]\n", ret, errno));
-			return done;
+			return done ? done : -1;
 		}
 		
 		memcpy(buf, tmp, todo);
@@ -624,7 +624,7 @@ write(int fd, const void *_buf, size_t size)
 		if (ret)
 		{
 			DEBUG((stderr, "write: partial part: read failure (r = %li, errno = %i)\n", ret, errno));
-			return done;
+			return done ? done : -1;
 		}
 		
 		data = mydev->xhdi_blocksize - offset;
@@ -636,7 +636,7 @@ write(int fd, const void *_buf, size_t size)
 		if (ret)
 		{
 			DEBUG((stderr, "write: partial part: write failure (r = %li, errno = %i)\n", ret, errno));
-			return done;
+			return done ? done : -1;
 		}
 		
 		buf += data;
@@ -664,7 +664,7 @@ write(int fd, const void *_buf, size_t size)
 		if (ret)
 		{
 			DEBUG((stderr, "write: full blocks: write failure (r = %li, errno = %i)\n", ret, errno));
-			return done;
+			return done ? done : -1;
 		}
 		
 		buf += data;
@@ -692,7 +692,7 @@ write(int fd, const void *_buf, size_t size)
 		if (ret)
 		{
 			DEBUG((stderr, "write: left part: read failure (r = %li, errno = %i)]\n", ret, errno));
-			return done;
+			return done ? done : -1;
 		}
 		
 		memcpy(tmp, buf, todo);
@@ -701,7 +701,7 @@ write(int fd, const void *_buf, size_t size)
 		if (ret)
 		{
 			DEBUG((stderr, "write: partial part: write failure (r = %li, errno = %i)\n", ret, errno));
-			return done;
+			return done ? done : -1;
 		}
 		
 		done += todo;
