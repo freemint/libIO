@@ -943,4 +943,42 @@ gemdos_partition(int fd)
 	return xhdi_id_is(xhdi_id, "GEM") || xhdi_id_is(xhdi_id, "BGM");
 }
 
+int
+partition_fat_bits(int fd, char *name)
+{
+	struct device *mydev = get_device(fd);
+	char *xhdi_id;
+
+	if (!mydev)
+		return -1;
+
+	xhdi_id = mydev->xhdi_id;
+	if (xhdi_id_is(xhdi_id, "\0D"))
+	{
+		unsigned char type = xhdi_id[2];
+
+		sprintf(name, "0x%02x", type);
+		switch (type)
+		{
+			case 0x01:
+				return 12;
+			case 0x04:
+			case 0x06:
+			case 0x0e:
+				return 16;
+			case 0x0b:
+			case 0x0c:
+				return 32;
+		}
+		return 0;
+	}
+
+	sprintf(name, "%.3s", xhdi_id);
+	if (xhdi_id_is(xhdi_id, "GEM") || xhdi_id_is(xhdi_id, "BGM"))
+		return 16;
+	if (xhdi_id_is(xhdi_id, "F32"))
+		return 32;
+	return 0;
+}
+
 # endif /* __MINT__ */

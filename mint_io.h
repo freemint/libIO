@@ -41,6 +41,7 @@
 
 int gettype(int fd);
 int gemdos_partition(int fd);
+int partition_fat_bits(int fd, char *name);
 
 /* 64-bit seek over the XHDI backend. */
 loff_t llseek(int fd, loff_t offset, int whence);
