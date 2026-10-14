@@ -342,7 +342,7 @@ open(const char *filename, int iomode, ...)
 	
 	/* only lock a drive known to be an XHDI partition: locking unmounts it
 	 * and moves every process off it */
-	if (mydev->open_flags == O_RDONLY)
+	if ((mydev->open_flags & O_ACCMODE) == O_RDONLY)
 	{
 		DEBUG((stderr, "readonly mode!\n"));
 		sync();
@@ -375,7 +375,7 @@ close(int fd)
 	}
 	DEBUG((stderr, "close: xhdi %d\n", fd));
 	
-	if (mydev->open_flags == O_RDONLY)
+	if ((mydev->open_flags & O_ACCMODE) == O_RDONLY)
 	{
 		;
 	}
@@ -586,7 +586,7 @@ write(int fd, const void *_buf, size_t size)
 	}
 	
 	DEBUG((stderr, "write: xhdi %d %ld\n", fd, (long)size));
-	if (mydev->open_flags == O_RDONLY)
+	if ((mydev->open_flags & O_ACCMODE) == O_RDONLY)
 	{
 		__set_errno(EPERM);
 		return -1;
