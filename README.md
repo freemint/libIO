@@ -1,9 +1,10 @@
 # libIO
 
 Partition access for FreeMiNT, which has no block devices. `mint_io.c`
-overrides `open()`, `close()`, `read()`, `write()`, `lseek()`, `llseek()`,
-`ioctl()`, `fstat()`, `stat()` and `fsync()`: a drive path such as `C:`, `C:\`
-or `C:/` is accessed through XHDI, anything else is passed on to mintlib.
+overrides `open()`, `close()`, `dup2()`, `read()`, `write()`, `lseek()`,
+`llseek()`, `ioctl()`, `fstat()`, `stat()` and `fsync()`: a drive path such as
+`C:`, `C:\` or `C:/` is accessed through XHDI, anything else is passed on to
+mintlib.
 `xhdi.c` provides the XHDI calls.
 
 Meant to be used as a git submodule; the parent project compiles `mint_io.c`

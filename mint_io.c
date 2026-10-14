@@ -98,6 +98,9 @@ loff_t lseek64(int fd, loff_t offset, int origin);
 int close(int __fd) __THROW;
 int __close(int __fd) __THROW;
 
+int dup2(int __fd, int __fd2) __THROW;
+int __dup2(int __fd, int __fd2) __THROW;
+
 ssize_t read(int __fd, void *__buf, size_t __nbytes) __THROW;
 ssize_t __read(int __fd, void *__buf, size_t __nbytes) __THROW;
 
@@ -114,6 +117,7 @@ int __stat(const char *filename, struct stat *st) __THROW;
 struct device
 {
 	int used;
+	int refs;
 	
 	int drv;
 	int open_flags;
@@ -131,10 +135,14 @@ struct device
 # define DEVS 16
 static struct device devs[DEVS];
 
+/* descriptors which dup2() pointed at a partition: devs[] index + 1, 0 if none */
+static unsigned char alias[1024];
+
 static void
 init_device(struct device *dev)
 {
 	dev->used = 0;
+	dev->refs = 0;
 	
 	dev->drv = -1;
 	dev->open_flags = 0;
@@ -172,6 +180,9 @@ get_device(int fd)
 {
 	struct device *dev;
 	
+	if ((fd >= 0) && (fd < 1024) && alias[fd])
+		return &devs[alias[fd] - 1];
+	
 	if ((fd < 1024) || (fd >= (1024 + DEVS)))
 		return NULL;
 	
@@ -203,6 +214,7 @@ alloc_device(void)
 		if (!dev->used)
 		{
 			dev->used = 1;
+			dev->refs = 1;
 			return (i + 1024);
 		}
 	}
@@ -361,19 +373,14 @@ open(const char *filename, int iomode, ...)
 	return dev;
 }
 
-int
-close(int fd)
+/* drop one reference, the last one unlocks the partition */
+static int
+put_device(struct device *mydev)
 {
-	struct device *mydev = get_device(fd);
 	int ret = 0;
 	
-	if (!mydev)
-	{
-		/* fall through */
-		DEBUG((stderr, "close: posix %d\n", fd));
-		return __close(fd);
-	}
-	DEBUG((stderr, "close: xhdi %d\n", fd));
+	if (--mydev->refs)
+		return 0;
 	
 	if ((mydev->open_flags & O_ACCMODE) == O_RDONLY)
 	{
@@ -391,6 +398,81 @@ close(int fd)
 	
 	free_device(mydev);
 	return ret;
+}
+
+int
+close(int fd)
+{
+	struct device *mydev = get_device(fd);
+	
+	if (!mydev)
+	{
+		/* fall through */
+		DEBUG((stderr, "close: posix %d\n", fd));
+		return __close(fd);
+	}
+	DEBUG((stderr, "close: xhdi %d\n", fd));
+	
+	if (fd < 1024)
+	{
+		alias[fd] = 0;
+		__close(fd);
+	}
+	
+	return put_device(mydev);
+}
+
+int
+dup2(int fd, int fd2)
+{
+	struct device *mydev = get_device(fd);
+	struct device *olddev = get_device(fd2);
+	int null;
+	
+	if (!mydev)
+	{
+		/* fall through */
+		if (__dup2(fd, fd2) == -1)
+			return -1;
+		
+		if (olddev && (fd != fd2))
+		{
+			alias[fd2] = 0;
+			put_device(olddev);
+		}
+		
+		return fd2;
+	}
+	
+	if (fd == fd2)
+		return fd2;
+	
+	if ((fd2 < 0) || (fd2 >= 1024))
+	{
+		__set_errno(EBADF);
+		return -1;
+	}
+	
+	/* the kernel keeps fd2 open on /dev/null, so that it can't hand it out
+	 * while it refers to the partition */
+	null = __open("/dev/null", O_RDWR);
+	if (null == -1)
+		return -1;
+	
+	if (null != fd2)
+	{
+		int ret = dup2(null, fd2);
+		
+		__close(null);
+		if (ret == -1)
+			return -1;
+	}
+	
+	alias[fd2] = mydev - devs + 1;
+	mydev->refs++;
+	
+	DEBUG((stderr, "dup2: xhdi %d -> %d\n", fd, fd2));
+	return fd2;
 }
 
 /* largest transfer handed to rwabs_xhdi(), also the size of its cache */
